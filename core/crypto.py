@@ -23,10 +23,20 @@ class CryptoManager:
         return base64.urlsafe_b64encode(kdf.derive(password.encode()))
 
     def unlock(self, password: str, salt: bytes) -> None:
-        self._fernet = Fernet(self.derive_key(password, salt))
+        self._raw_key = self.derive_key(password, salt)
+        self._fernet = Fernet(self._raw_key)
+
+    def unlock_with_raw_key(self, raw_key: bytes) -> None:
+        self._raw_key = raw_key
+        self._fernet = Fernet(raw_key)
 
     def lock(self) -> None:
         self._fernet = None
+        self._raw_key: bytes | None = None
+
+    @property
+    def raw_key(self) -> bytes | None:
+        return getattr(self, "_raw_key", None)
 
     @property
     def is_unlocked(self) -> bool:
@@ -79,6 +89,21 @@ class CryptoManager:
     @staticmethod
     def new_salt() -> bytes:
         return os.urandom(32)
+
+    @staticmethod
+    def derive_recovery_key(answer1: str, answer2: str, salt: bytes) -> bytes:
+        combined = (answer1.lower().strip() + "|" + answer2.lower().strip()).encode()
+        kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32,
+                         salt=salt, iterations=100_000)
+        return base64.urlsafe_b64encode(kdf.derive(combined))
+
+    @staticmethod
+    def encrypt_with_key(data: bytes, key: bytes) -> bytes:
+        return Fernet(key).encrypt(data)
+
+    @staticmethod
+    def decrypt_with_key(encrypted: bytes, key: bytes) -> bytes:
+        return Fernet(key).decrypt(encrypted)
 
     # ── Password generator ────────────────────────────────────────────────────
 

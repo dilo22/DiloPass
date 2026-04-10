@@ -5,6 +5,7 @@ import customtkinter as ctk
 
 from core.crypto import CryptoManager
 from core.database import ATTACHMENTS_DIR, DB_PATH, DatabaseManager
+from ui.login import QUESTIONS
 
 
 class SettingsView(ctk.CTkFrame):
@@ -60,6 +61,27 @@ class SettingsView(ctk.CTkFrame):
             variable=self._clip_var,
             command=lambda v: self._db.set_setting("clipboard_clear_s", v),
         ).pack(side="right")
+
+        self._section(scroll, "Questions de secours")
+        has_recovery = self._db.get_recovery() is not None
+        rec_status = ctk.CTkFrame(scroll, corner_radius=10,
+                                   fg_color=("#f8fafc", "#1e293b"))
+        rec_status.pack(fill="x", pady=(4, 2))
+        ctk.CTkLabel(rec_status,
+                     text="✓  Configurées" if has_recovery else "✗  Non configurées",
+                     font=("Segoe UI", 12),
+                     text_color="#22c55e" if has_recovery else "#ef4444",
+                     ).pack(side="left", padx=14, pady=10)
+        ctk.CTkButton(
+            scroll,
+            text="Modifier les questions" if has_recovery else "Configurer maintenant",
+            height=40, corner_radius=10,
+            fg_color=("#e2e8f0", "#334155"),
+            hover_color=("#cbd5e1", "#475569"),
+            text_color=("#374151", "#e2e8f0"),
+            font=("Segoe UI", 13),
+            command=self._setup_recovery,
+        ).pack(anchor="w", pady=(2, 8))
 
         self._section(scroll, "Mot de passe maitre")
         ctk.CTkButton(
@@ -125,6 +147,9 @@ class SettingsView(ctk.CTkFrame):
         mapping = {"Sombre": "dark", "Clair": "light", "Systeme": "system"}
         ctk.set_appearance_mode(mapping.get(mode, "dark"))
         self._on_theme(mode)
+
+    def _setup_recovery(self):
+        SetupRecoveryDialog(self, self._db, self._crypto, self._toast)
 
     def _change_master(self):
         ChangeMasterDialog(self, self._db, self._crypto, self._toast)
@@ -288,3 +313,126 @@ class ChangeMasterDialog(ctk.CTkToplevel):
                     text=f"Migration impossible : {exc}"))
 
         threading.Thread(target=work, daemon=True).start()
+
+
+class SetupRecoveryDialog(ctk.CTkToplevel):
+    """Configure ou met à jour les questions de secours."""
+
+    def __init__(self, parent, db, crypto, toast):
+        super().__init__(parent)
+        self._db = db
+        self._crypto = crypto
+        self._toast = toast
+        self.title("Questions de secours")
+        self.geometry("520x620")
+        self.minsize(480, 560)
+        self.resizable(True, True)
+        self.grab_set()
+        self._build()
+
+    def _build(self):
+        body = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=4)
+        px = 32
+
+        ctk.CTkLabel(body, text="🛡", font=("Segoe UI", 48)).pack(pady=(24, 4))
+        ctk.CTkLabel(body, text="Questions de secours",
+                     font=("Segoe UI", 18, "bold")).pack()
+        ctk.CTkLabel(body,
+                     text="Ces réponses permettront de récupérer l'accès\n"
+                          "si vous oubliez votre mot de passe maître.",
+                     font=("Segoe UI", 11), text_color="#94a3b8",
+                     justify="center").pack(pady=(4, 16))
+
+        # Vérification mot de passe actuel
+        ctk.CTkLabel(body, text="Mot de passe maître actuel *",
+                     font=("Segoe UI", 12), text_color="#94a3b8").pack(
+                         anchor="w", padx=px, pady=(0, 4))
+        self._cur_pw = ctk.CTkEntry(body, placeholder_text="Confirmer votre identité…",
+                                     show="●", height=44, font=("Segoe UI", 13),
+                                     corner_radius=8)
+        self._cur_pw.pack(fill="x", padx=px)
+        self._cur_pw.focus()
+
+        ctk.CTkFrame(body, height=1, fg_color="#334155").pack(
+            fill="x", padx=px, pady=16)
+
+        # Question 1
+        ctk.CTkLabel(body, text="Question 1",
+                     font=("Segoe UI", 12), text_color="#94a3b8").pack(
+                         anchor="w", padx=px, pady=(0, 4))
+        self._q1 = ctk.CTkOptionMenu(body, values=QUESTIONS, height=40,
+                                      corner_radius=8, font=("Segoe UI", 11),
+                                      dynamic_resizing=False)
+        self._q1.set(QUESTIONS[0])
+        self._q1.pack(fill="x", padx=px)
+        ctk.CTkLabel(body, text="Réponse *",
+                     font=("Segoe UI", 12), text_color="#94a3b8").pack(
+                         anchor="w", padx=px, pady=(8, 4))
+        self._a1 = ctk.CTkEntry(body, placeholder_text="Votre réponse…",
+                                  height=44, font=("Segoe UI", 13), corner_radius=8)
+        self._a1.pack(fill="x", padx=px)
+
+        # Question 2
+        ctk.CTkLabel(body, text="Question 2",
+                     font=("Segoe UI", 12), text_color="#94a3b8").pack(
+                         anchor="w", padx=px, pady=(12, 4))
+        self._q2 = ctk.CTkOptionMenu(body, values=QUESTIONS, height=40,
+                                      corner_radius=8, font=("Segoe UI", 11),
+                                      dynamic_resizing=False)
+        self._q2.set(QUESTIONS[1])
+        self._q2.pack(fill="x", padx=px)
+        ctk.CTkLabel(body, text="Réponse *",
+                     font=("Segoe UI", 12), text_color="#94a3b8").pack(
+                         anchor="w", padx=px, pady=(8, 4))
+        self._a2 = ctk.CTkEntry(body, placeholder_text="Votre réponse…",
+                                  height=44, font=("Segoe UI", 13), corner_radius=8)
+        self._a2.pack(fill="x", padx=px)
+
+        self._err = ctk.CTkLabel(body, text="", text_color="#ef4444",
+                                   font=("Segoe UI", 12))
+        self._err.pack(pady=(10, 0))
+
+        self._btn = ctk.CTkButton(
+            body, text="Enregistrer", height=48,
+            font=("Segoe UI", 14, "bold"),
+            fg_color="#4A9EFF", hover_color="#2563eb",
+            corner_radius=12, command=self._save)
+        self._btn.pack(fill="x", padx=px, pady=(10, 24))
+
+    def _save(self):
+        cur_pw = self._cur_pw.get()
+        a1     = self._a1.get().strip()
+        a2     = self._a2.get().strip()
+        q1     = self._q1.get()
+        q2     = self._q2.get()
+
+        if not CryptoManager.verify_master(cur_pw, self._db.get_master_hash()):
+            self._err.configure(text="Mot de passe actuel incorrect.")
+            return
+        if q1 == q2:
+            self._err.configure(text="Choisissez deux questions différentes.")
+            return
+        if not a1 or not a2:
+            self._err.configure(text="Veuillez répondre aux deux questions.")
+            return
+
+        self._btn.configure(state="disabled", text="Enregistrement…")
+        threading.Thread(target=self._save_async,
+                         args=(a1, a2, q1, q2), daemon=True).start()
+
+    def _save_async(self, a1, a2, q1, q2):
+        try:
+            rec_salt = CryptoManager.new_salt()
+            rec_key  = CryptoManager.derive_recovery_key(a1, a2, rec_salt)
+            enc_key  = CryptoManager.encrypt_with_key(self._crypto.raw_key, rec_key)
+            self._db.save_recovery(rec_salt, q1, q2, enc_key)
+            self.after(0, lambda: [
+                self._toast("Questions de secours enregistrées."),
+                self.destroy(),
+            ])
+        except Exception as exc:
+            self.after(0, lambda: (
+                self._err.configure(text=f"Erreur : {exc}"),
+                self._btn.configure(state="normal", text="Enregistrer"),
+            ))

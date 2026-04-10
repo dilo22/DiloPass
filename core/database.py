@@ -330,6 +330,44 @@ class DatabaseManager:
         self._conn.execute("DELETE FROM file_vault_files WHERE id=?", (file_id,))
         self._conn.commit()
 
+    def get_all_file_vault_folders_flat(self) -> list:
+        return self._conn.execute("SELECT * FROM file_vault_folders").fetchall()
+
+    def get_all_file_vault_files_flat(self) -> list:
+        return self._conn.execute("SELECT * FROM file_vault_files").fetchall()
+
+    def update_file_vault_file_fields(self, file_id: int,
+                                      title: bytes, original_name: bytes):
+        self._conn.execute(
+            "UPDATE file_vault_files SET title=?, original_name=? WHERE id=?",
+            (title, original_name, file_id))
+
+    # ── Recovery ──────────────────────────────────────────────────────────────
+
+    def save_recovery(self, salt: bytes, q1: str, q2: str,
+                      encrypted_key: bytes):
+        for k, v in [
+            ("recovery_salt",          salt),
+            ("recovery_q1",            q1.encode()),
+            ("recovery_q2",            q2.encode()),
+            ("recovery_encrypted_key", encrypted_key),
+        ]:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO config VALUES (?, ?)", (k, v))
+        self._conn.commit()
+
+    def get_recovery(self) -> dict | None:
+        keys = ["recovery_salt", "recovery_q1", "recovery_q2",
+                "recovery_encrypted_key"]
+        result = {}
+        for k in keys:
+            row = self._conn.execute(
+                "SELECT value FROM config WHERE key=?", (k,)).fetchone()
+            if row is None:
+                return None
+            result[k] = bytes(row["value"])
+        return result
+
     def begin(self):
         self._conn.execute("BEGIN")
 
