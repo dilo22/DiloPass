@@ -8,11 +8,13 @@ from ui.notes import NotesView
 from ui.generator import GeneratorView
 from ui.audit import AuditView
 from ui.settings import SettingsView
+from ui.filevault import FileVaultView
 
 
 NAV_ITEMS = [
     ("🏠", "Tableau de bord", "dashboard"),
     ("🔑", "Coffre-Fort",     "vault"),
+    ("📁", "Coffre Fichiers", "filevault"),
     ("📝", "Notes",           "notes"),
     ("⚡", "Générateur",      "generator"),
     ("🛡", "Audit",           "audit"),
@@ -181,6 +183,8 @@ class DiloPassApp(ctk.CTk):
             self._content, self._db, self._crypto, self._switch_view)
         self._views["vault"] = VaultView(
             self._content, self._db, self._crypto, self._show_toast)
+        self._views["filevault"] = FileVaultView(
+            self._content, self._db, self._crypto, self._show_toast)
         self._views["notes"] = NotesView(
             self._content, self._db, self._crypto, self._show_toast)
         self._views["generator"] = GeneratorView(
@@ -200,11 +204,12 @@ class DiloPassApp(ctk.CTk):
         self._active_view = key
         self._views[key].tkraise()
         # Refresh data views
-        if key in ("vault", "notes", "audit"):
+        if key in ("vault", "notes", "audit", "filevault"):
             self._views[key].refresh() if hasattr(self._views[key], "refresh") else None
 
         titles = {k: lbl for _, lbl, k in NAV_ITEMS}
         titles["settings"] = "Paramètres"
+        titles["filevault"] = "Coffre Fichiers"
         self._page_title.configure(text=titles.get(key, key.title()))
 
         # Update nav highlight
@@ -286,6 +291,8 @@ class DashboardView(ctk.CTkFrame):
         s = self._db.stats()
         self._stat_card(stats_frame, "🔑", str(s["vault"]),  "Mots de passe", "#4A9EFF",
                         lambda: self._switch("vault"))
+        self._stat_card(stats_frame, "📁", str(s["files"]),  "Fichiers chiffrés", "#a855f7",
+                        lambda: self._switch("filevault"))
         self._stat_card(stats_frame, "📝", str(s["notes"]),  "Notes sécurisées", "#22c55e",
                         lambda: self._switch("notes"))
         self._stat_card(stats_frame, "★",  str(s["favorites"]), "Favoris", "#eab308",
@@ -299,9 +306,11 @@ class DashboardView(ctk.CTkFrame):
         acts.pack(fill="x", padx=24)
         self._quick_btn(acts, "➕  Nouveau mot de passe", "#4A9EFF", "#2563eb",
                         lambda: self._switch("vault"))
+        self._quick_btn(acts, "📁  Coffre fichiers", "#a855f7", "#7c3aed",
+                        lambda: self._switch("filevault"))
         self._quick_btn(acts, "📝  Nouvelle note", "#22c55e", "#16a34a",
                         lambda: self._switch("notes"))
-        self._quick_btn(acts, "⚡  Générer un mot de passe", "#a855f7", "#7c3aed",
+        self._quick_btn(acts, "⚡  Générer un mot de passe", "#6366f1", "#4338ca",
                         lambda: self._switch("generator"))
         self._quick_btn(acts, "🛡  Lancer l'audit", "#f97316", "#ea580c",
                         lambda: self._switch("audit"))

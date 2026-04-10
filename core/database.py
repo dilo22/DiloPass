@@ -8,6 +8,7 @@ from typing import Optional
 DATA_DIR = os.path.join(os.path.expanduser("~"), ".dilopass")
 DB_PATH  = os.path.join(DATA_DIR, "vault.db")
 ATTACHMENTS_DIR = os.path.join(DATA_DIR, "attachments")
+FILE_VAULT_DIR  = os.path.join(DATA_DIR, "filevault")
 
 
 @dataclass
@@ -38,6 +39,25 @@ class SecureNote:
 
 
 @dataclass
+class FileVaultFolder:
+    name: str
+    parent_id: Optional[int] = None
+    created_at: float = field(default_factory=time.time)
+    id: Optional[int] = None
+
+
+@dataclass
+class FileVaultFile:
+    folder_id: int
+    title: str
+    stored_name: str
+    original_name: str
+    size_bytes: int
+    created_at: float = field(default_factory=time.time)
+    id: Optional[int] = None
+
+
+@dataclass
 class VaultAttachment:
     entry_id: int
     stored_name: str
@@ -51,6 +71,7 @@ class DatabaseManager:
     def __init__(self):
         os.makedirs(DATA_DIR, exist_ok=True)
         os.makedirs(ATTACHMENTS_DIR, exist_ok=True)
+        os.makedirs(FILE_VAULT_DIR, exist_ok=True)
         self._conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._init_schema()
@@ -93,6 +114,23 @@ class DatabaseManager:
                 size_bytes    INTEGER NOT NULL,
                 created_at    REAL NOT NULL,
                 FOREIGN KEY (entry_id) REFERENCES vault(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS file_vault_folders (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        BLOB NOT NULL,
+                parent_id   INTEGER,
+                created_at  REAL NOT NULL,
+                FOREIGN KEY (parent_id) REFERENCES file_vault_folders(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS file_vault_files (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                folder_id     INTEGER NOT NULL,
+                title         BLOB NOT NULL,
+                stored_name   TEXT NOT NULL UNIQUE,
+                original_name BLOB NOT NULL,
+                size_bytes    INTEGER NOT NULL,
+                created_at    REAL NOT NULL,
+                FOREIGN KEY (folder_id) REFERENCES file_vault_folders(id) ON DELETE CASCADE
             );
         """)
         c.commit()
@@ -240,6 +278,58 @@ class DatabaseManager:
                WHERE id=?""",
             (title, content, tags, time.time(), note_id))
 
+    # ── File Vault Folders ────────────────────────────────────────────────────
+
+    def add_file_vault_folder(self, name: bytes, parent_id: Optional[int] = None) -> int:
+        cur = self._conn.execute(
+            "INSERT INTO file_vault_folders (name, parent_id, created_at) VALUES (?, ?, ?)",
+            (name, parent_id, time.time()))
+        self._conn.commit()
+        return cur.lastrowid
+
+    def get_file_vault_folders(self, parent_id: Optional[int] = None) -> list:
+        return self._conn.execute(
+            "SELECT * FROM file_vault_folders WHERE parent_id IS ? ORDER BY created_at ASC",
+            (parent_id,)).fetchall()
+
+    def rename_file_vault_folder(self, folder_id: int, name: bytes):
+        self._conn.execute(
+            "UPDATE file_vault_folders SET name=? WHERE id=?", (name, folder_id))
+        self._conn.commit()
+
+    def delete_file_vault_folder(self, folder_id: int):
+        self._conn.execute("DELETE FROM file_vault_folders WHERE id=?", (folder_id,))
+        self._conn.commit()
+
+    def get_all_folder_ids_recursive(self, folder_id: int) -> list[int]:
+        """Retourne l'ID du dossier + tous ses descendants."""
+        ids = [folder_id]
+        for child in self.get_file_vault_folders(parent_id=folder_id):
+            ids.extend(self.get_all_folder_ids_recursive(child["id"]))
+        return ids
+
+    # ── File Vault Files ──────────────────────────────────────────────────────
+
+    def add_file_vault_file(self, folder_id: int, title: bytes,
+                            stored_name: str, original_name: bytes,
+                            size_bytes: int) -> int:
+        cur = self._conn.execute(
+            """INSERT INTO file_vault_files
+               (folder_id, title, stored_name, original_name, size_bytes, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (folder_id, title, stored_name, original_name, size_bytes, time.time()))
+        self._conn.commit()
+        return cur.lastrowid
+
+    def get_file_vault_files(self, folder_id: int) -> list:
+        return self._conn.execute(
+            "SELECT * FROM file_vault_files WHERE folder_id=? ORDER BY created_at DESC",
+            (folder_id,)).fetchall()
+
+    def delete_file_vault_file(self, file_id: int):
+        self._conn.execute("DELETE FROM file_vault_files WHERE id=?", (file_id,))
+        self._conn.commit()
+
     def begin(self):
         self._conn.execute("BEGIN")
 
@@ -256,7 +346,8 @@ class DatabaseManager:
         n = self._conn.execute("SELECT COUNT(*) FROM notes").fetchone()[0]
         f = self._conn.execute(
             "SELECT COUNT(*) FROM vault WHERE is_favorite=1").fetchone()[0]
-        return {"vault": v, "notes": n, "favorites": f}
+        fv = self._conn.execute("SELECT COUNT(*) FROM file_vault_files").fetchone()[0]
+        return {"vault": v, "notes": n, "favorites": f, "files": fv}
 
     def close(self):
         self._conn.close()
