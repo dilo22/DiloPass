@@ -9,6 +9,7 @@ from ui.generator import GeneratorView
 from ui.audit import AuditView
 from ui.settings import SettingsView
 from ui.filevault import FileVaultView
+from ui.window_utils import apply_window_icon
 
 
 NAV_ITEMS = [
@@ -26,6 +27,7 @@ ACCENT = "#4A9EFF"
 class DiloPassApp(ctk.CTk):
     def __init__(self):
         super().__init__()
+        apply_window_icon(self)
         self.title("DiloPass")
         self.geometry("1160x720")
         self.minsize(900, 600)

@@ -326,6 +326,11 @@ class DatabaseManager:
             "SELECT * FROM file_vault_files WHERE folder_id=? ORDER BY created_at DESC",
             (folder_id,)).fetchall()
 
+    def get_file_vault_folder(self, folder_id: int):
+        return self._conn.execute(
+            "SELECT * FROM file_vault_folders WHERE id=?",
+            (folder_id,)).fetchone()
+
     def delete_file_vault_file(self, file_id: int):
         self._conn.execute("DELETE FROM file_vault_files WHERE id=?", (file_id,))
         self._conn.commit()
@@ -341,6 +346,12 @@ class DatabaseManager:
         self._conn.execute(
             "UPDATE file_vault_files SET title=?, original_name=? WHERE id=?",
             (title, original_name, file_id))
+
+    def move_file_vault_file(self, file_id: int, folder_id: int):
+        self._conn.execute(
+            "UPDATE file_vault_files SET folder_id=? WHERE id=?",
+            (folder_id, file_id))
+        self._conn.commit()
 
     # ── Recovery ──────────────────────────────────────────────────────────────
 

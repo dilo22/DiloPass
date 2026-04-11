@@ -21,6 +21,7 @@ a = Analysis(
     binaries=[],
     datas=[
         (ctk_path, "customtkinter/"),   # thèmes et assets CTk obligatoires
+        ("assets/icon.ico", "assets"),  # icone runtime pour les fenetres
     ],
     hiddenimports=[
         "customtkinter",
@@ -35,6 +36,7 @@ a = Analysis(
         "cryptography.hazmat.backends",
         "pyperclip",
         "pyperclip.handlers",
+        "fitz",
         "sqlite3",
         "tkinter",
         "tkinter.filedialog",

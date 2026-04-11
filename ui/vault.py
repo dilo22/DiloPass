@@ -32,6 +32,7 @@ class VaultView(ctk.CTkFrame):
         self._toast = show_toast
         self._filter_cat = "Tous"
         self._search_query = ""
+        self._is_revealed = False
         self._build()
         self.refresh()
 
@@ -39,8 +40,20 @@ class VaultView(ctk.CTkFrame):
         top = ctk.CTkFrame(self, fg_color="transparent")
         top.pack(fill="x", padx=20, pady=(16, 8))
 
-        ctk.CTkLabel(top, text="Coffre-Fort",
+        title_row = ctk.CTkFrame(top, fg_color="transparent")
+        title_row.pack(side="left")
+        ctk.CTkLabel(title_row, text="Coffre-Fort",
                      font=("Segoe UI", 22, "bold")).pack(side="left")
+        self._reveal_btn = ctk.CTkButton(
+            title_row, text="?", width=26, height=26,
+            font=("Segoe UI", 12, "bold"),
+            corner_radius=13,
+            fg_color=("#e2e8f0", "#334155"),
+            hover_color=("#cbd5e1", "#475569"),
+            text_color=("#374151", "#e2e8f0"),
+            command=self._toggle_reveal,
+        )
+        self._reveal_btn.pack(side="left", padx=(8, 0))
 
         ctk.CTkButton(
             top,
@@ -117,6 +130,15 @@ class VaultView(ctk.CTkFrame):
     def refresh(self):
         for widget in self._scroll.winfo_children():
             widget.destroy()
+        if not self._is_revealed:
+            ctk.CTkLabel(
+                self._scroll,
+                text="Votre Coffre Fort est vide",
+                font=("Segoe UI", 14),
+                text_color="#94a3b8",
+                justify="center",
+            ).pack(expand=True, pady=60)
+            return
 
         entries = []
         for row in self._db.get_all_vault():
@@ -281,6 +303,16 @@ class VaultView(ctk.CTkFrame):
 
     def _open_edit_dialog(self, row):
         EntryDialog(self, self._db, self._crypto, row, self.refresh, self._toast)
+
+    def _toggle_reveal(self):
+        self._is_revealed = not self._is_revealed
+        if self._is_revealed:
+            self._reveal_btn.configure(fg_color=("#bfdbfe", "#1e3a8a"))
+            self._toast("Contenu du coffre affiché.")
+        else:
+            self._reveal_btn.configure(fg_color=("#e2e8f0", "#334155"))
+            self._toast("Contenu du coffre masqué.")
+        self.refresh()
 
 
 class EntryDialog(ctk.CTkToplevel):
